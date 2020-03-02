@@ -1,0 +1,600 @@
+```{r}
+############################
+#Packages:
+
+#install.packages("rjson")
+#install.packages(stringr)
+
+library(rjson)#for json import
+library(stringr)#for str_replace
+
+############################
+
+```
+
+```{r}
+#Requires input:
+##############################################################
+
+#Change path to the directory in which your mzQC files are located:
+
+path <- "C:/Users/pauwmarina/Desktop/swathResults/temporary"
+
+###############################################################
+
+
+files <- dir(path, pattern = "*.json")
+
+combinedList = NULL
+
+for(i in 1:length(files)){
+  file = fromJSON(file =paste(path,files[i], sep="/"))
+  combinedList[[length(combinedList)+1]] <- list(file)
+}
+```
+
+
+```{r}
+
+#Get filenames:
+filenames = NULL
+for(list in 1:length(combinedList))
+{
+  filenames = c(filenames, combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["metadata"]][["inputFiles"]][[1]][["name"]]) 
+}
+
+numOfMetrics = length(combinedList[[1]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]])
+
+```
+
+
+
+```{r}
+#Requires Input:
+##############################################################
+
+#Input the number of unique isolation windows in this study: 
+swathNumber = 33
+
+
+#Input the number of divisions that were selected:(If you didn't use division leave it at 1)
+Divisions = 1
+##############################################################
+
+```
+
+```{r}
+#creates swathDividedmetrics df
+
+swaths = NULL
+
+for(file in 1:length(filenames))
+{
+  for(i in 1:swathNumber)
+  {
+    swaths = c(swaths,paste(filenames[file],"_swath_",i, sep=""))
+    
+  }
+}
+swathDividedMetrics = data.frame(row.names = swaths)
+
+```
+
+```{r}
+#creates RTDividedmetrics df
+divs = NULL
+for(file in 1:length(filenames))
+{
+  for(i in 1:Divisions)
+  {
+  divs = c(divs,paste(filenames[file],"_segment_",i, sep=""))
+  }
+}
+RTDividedMetrics = data.frame(row.names = divs)
+
+
+
+```
+
+
+```{r}
+
+ComprehensiveMetrics = data.frame(row.names = filenames)
+```
+
+
+```{r}
+IRTMetrics = data.frame("ProductTargetMzs"=NA,"PrecursorTargetMz"=NA,"PeptideSequence"=NA,"Intensities"=NA,"ActualMzs"=NA,"RetentionTime"=NA, "AverageMassError"=NA,"TotalMassError"=NA,"TotalMassErrorPpm"=NA, "AverageMassErrorPpm"=NA,"IrtPeptidesFound"=NA,"IrtSpread"=NA,"IrtOrderedness"=NA,"MeanIrtMassError"=NA, "MaxIrtMassError"=NA,"IrtPeptideFoundProportion"=NA)
+
+```
+
+
+
+```{r}
+#SwathDividedMetrics
+list = 2
+columnNum = 0
+
+  for( metric in 1:numOfMetrics)
+  {
+    metricLength = length(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]])
+    for(list in 1:length(combinedList))
+    {
+    
+    if(metricLength == swathNumber)
+    {
+      if(list==1)#This is the first and we need to create the column:
+      {
+        columnNum = ncol(swathDividedMetrics)+1
+        swathDividedMetrics[,columnNum] = rep("NA",nrow(swathDividedMetrics))
+        metricName = sub(".*:", "", combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["name"]])
+        colnames(swathDividedMetrics)[columnNum] = metricName
+        }
+      for(iii in 1:metricLength)
+      {
+      swathDividedMetrics[(list-1)*swathNumber+iii,columnNum] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iii]]
+        }
+    }
+  }
+}
+
+
+
+```
+
+
+```{r}
+#RTDividedMetrics - Only applicable if you changed the number of divisions when running SwaMe
+
+columnNum = 0
+
+
+for( metric in 1:numOfMetrics)
+  {
+    metricLength = length(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]])
+ for(list in 1:length(combinedList))
+{
+     
+    
+    if(metricLength == Divisions)
+    {
+      if(list==1)#This is the first and we need to create the column:
+      {
+        columnNum = ncol(RTDividedMetrics)+1
+        RTDividedMetrics[,columnNum] = rep("NA",nrow(RTDividedMetrics))
+        metricName = sub(".*:", "", combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["name"]])
+        colnames(RTDividedMetrics)[columnNum] = metricName
+        }
+      for(iii in 1:metricLength)
+      {
+        RTDividedMetrics[(list-1)*Divisions+iii,columnNum] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iii]]
+        }
+    }
+  }
+}
+
+
+
+```
+
+
+```{r}
+#ComprehensiveMetrics
+
+
+columnNum = 0
+metric = 2
+list = 2
+columnNum = 2
+
+for( metric in 1:numOfMetrics)
+{
+    
+    for(list in 1:length(combinedList))
+    {
+    metricLength = length(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]])
+    metricName = sub(".*:", "", combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["name"]])
+    if(metricLength == 1 && metricName != " IrtPeptides")#Sometimes there is only one peptide identified
+    {
+      if(list==1)#This is the first and we need to create the column:
+      {
+        columnNum = ncol(ComprehensiveMetrics)+1
+        ComprehensiveMetrics[,columnNum] = rep("NA",nrow(ComprehensiveMetrics))
+        colnames(ComprehensiveMetrics)[columnNum] = metricName
+      }
+      
+    ComprehensiveMetrics[list,columnNum] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[1]]
+    }
+  }
+}
+
+```
+
+
+```{r}
+#IRTMetrics - only applicable if you ran irt functionality in SwaMe
+
+NumOfIRTPeps =0
+NumOfAllFragments = 0
+#Figure out the number of peptides found and the number of fragments within them, this will give us the number of rows:
+
+for(list in 1:length(combinedList))
+{
+  
+  for(iii in 1: numOfMetrics)
+  {
+    if(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[iii]][["name"]] == "Prognosticator Metric: IrtPeptides")
+    {
+      NumOfIRTPeps = length(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[iii]][["value"]])
+      for(jjj in 1:NumOfIRTPeps)
+      {
+       NumOfAllFragments = NumOfAllFragments+ length(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[iii]][["value"]][[jjj]][["Intensities"]])
+        
+        }
+      
+    }
+  }
+  
+}
+
+#Create rows:
+
+    IRTMetrics[1:NumOfAllFragments,] = rep("NA",ncol(IRTMetrics))
+  
+
+
+```
+
+
+```{r}
+ 
+  
+  ########First lets get the IRTPeptides columns in:
+
+listOfNumOFIRTFrag = NULL
+listOfNumOfIRTPeptides = NULL
+  
+  #Which row are we on?
+  currentrow = 1
+  #############
+ 
+ #Filling the values: 
+   
+  for( metric in 1:numOfMetrics)
+  {
+    metricName = sub(".*: ", "", combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["name"]])
+    if(metricName  == "IrtPeptides")
+    { 
+      for(list in 1:length(combinedList))
+      {
+
+      NumOfIRTPeps = length(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]])
+       listOfNumOfIRTPeptides = c(listOfNumOfIRTPeptides,NumOfIRTPeps)
+      for(iiii in 1:NumOfIRTPeps)
+        {
+        
+        NumofFragments = length(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["Intensities"]])
+       
+        listOfNumOFIRTFrag = c(listOfNumOFIRTFrag, NumofFragments)
+          for(jjjj in 1: NumofFragments)
+          {
+      
+        #Insert the first metric values:
+        
+          productMzs = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["ProductTargetMzs"]]
+          
+          IRTMetrics[currentrow,"ProductTargetMzs"] = paste( unlist(productMzs), collapse='; ')
+          
+          IRTMetrics[currentrow,"PrecursorTargetMz"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["PrecursorTargetMz"]]
+          
+          IRTMetrics[currentrow,"PeptideSequence"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["PeptideSequence"]]
+          
+          IRTMetrics[currentrow,"Intensities"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["Intensities"]][[jjjj]]
+          
+          IRTMetrics[currentrow,"ActualMzs"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["ActualMzs"]][[jjjj]]
+            
+          IRTMetrics[currentrow,"RetentionTime"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["RetentionTime"]]
+          
+          IRTMetrics[currentrow,"AverageMassError"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["AverageMassError"]]
+          
+          IRTMetrics[currentrow,"TotalMassError"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["TotalMassError"]]
+          
+          IRTMetrics[currentrow,"AverageMassErrorPpm"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["AverageMassErrorPpm"]]
+          
+          IRTMetrics[currentrow,"TotalMassErrorPpm"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[metric]][["value"]][[iiii]][["TotalMassErrorPpm"]]
+          
+          for(i in 1:numOfMetrics)
+          {
+              metricName = sub(".*: ", "", combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["name"]])
+              if(metricName == "IrtPeptidesFound")
+              {
+                IRTMetrics[currentrow,"IrtPeptidesFound"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[1]]
+                
+              }
+              else if(metricName == "IrtSpread")
+              {
+                IRTMetrics[currentrow,"IrtSpread"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[1]]
+                
+              }
+              else if(metricName == "IrtOrderedness")
+              {
+                IRTMetrics[currentrow,"IrtOrderedness"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[1]]
+                
+              }
+              else if(metricName == "MeanIrtMassError")
+              {
+                IRTMetrics[currentrow,"MeanIrtMassError"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[1]]
+                
+              }
+              else if(metricName == "MaxIrtMassError")
+              {
+                IRTMetrics[currentrow,"MaxIrtMassError"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[1]]
+                
+              }
+              else if(metricName == "IrtPeptideFoundProportion")
+              {
+                IRTMetrics[currentrow,"IrtPeptideFoundProportion"] = combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[1]]
+                
+              }
+            
+            }
+          
+      currentrow = currentrow+1
+        
+        }
+      }
+    
+    }
+  }
+  
+}
+
+
+
+```
+
+
+```{r}
+###########################################################
+
+#Now for the other metrics:
+
+
+###########################################################
+MS1TICQuartiles=data.frame()
+
+for(list in 1:length(combinedList))
+{
+
+#MS1TICQuartiles
+      for(i in 1:numOfMetrics)
+          {
+              metricName = sub(".*: ", "", combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["name"]])
+              if(metricName == "MS1TICQuartiles")
+              {
+
+              MS1TICQuartiles= rbind(MS1TICQuartiles, combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]])
+              }
+          }
+
+}
+
+
+```
+
+
+```{r}
+
+MS2TICQuartiles=data.frame()
+
+for(list in 1:length(combinedList))
+{
+
+#MS2TICQuartiles
+      for(i in 1:numOfMetrics)
+          {
+              metricName = sub(".*: ", "", combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["name"]])
+              if(metricName == "MS2TICQuartiles")
+              {
+
+              MS2TICQuartiles= rbind(MS2TICQuartiles, combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]])
+              }
+          }
+
+}
+```
+
+
+```{r}
+
+#MS1TIC
+
+#Requires Input!!!
+
+################NB: This metric is a table so you may want to produce a table for each inputfile and compare the tables. Replace the inputFile for the number of the file (the third file input would be inputFile =3). Then rename the table to separate it from the other tables you will be making.
+
+inputFile = 1
+
+
+MS1TICTable=data.frame()
+
+
+ for(i in 1:numOfMetrics)
+          {
+              metricName = sub(".*: ", "", combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["name"]])
+              if(metricName == "MS1TIC")
+              {
+                  numItems = length(combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]])
+                for(iii in 1:numItems )
+                {  
+                MS1TICTable= rbind(MS1TICTable,combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[iii]])
+                  
+                  }
+              }
+ }
+
+
+```
+
+```{r}
+
+#MS2TIC
+
+#Requires Input!!!
+
+################NB: This metric is a table so you may want to produce a table for each inputfile and compare the tables. Replace the inputFile for the number of the file (the third file input would be inputFile =3). Then rename the table to separate it from the other tables you will be making.
+
+MS2TICTable=data.frame()
+
+inputFile = 1
+
+ for(i in 1:numOfMetrics)
+          {
+              metricName = sub(".*: ", "", combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["name"]])
+              if(metricName == "MS2TIC")
+              {
+                numItems = length(combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]])
+              for(iii in 1:numItems )
+              {  
+              MS2TICTable= rbind(MS2TICTable,combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[iii]])
+                
+                }
+              }
+ }
+
+
+```
+
+
+```{r}
+
+#MS2BPC
+
+#Requires Input!!!
+
+################NB: This metric is a table so you may want to produce a table for each inputfile and compare the tables. Replace the inputFile for the number of the file (the third file input would be inputFile =3). Then rename the table to separate it from the other tables you will be making.
+
+MS2BPCTable=data.frame()
+
+inputFile = 1
+
+ for(i in 1:numOfMetrics)
+          {
+              metricName = sub(".*: ", "", combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["name"]])
+              if(metricName == "MS2BPC")
+              {
+                numItems = length(combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]])
+              for(iii in 1:numItems )
+              {  
+              MS2BPCTable= rbind(MS2BPCTable,combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[iii]])
+                
+                }
+              }
+ }
+
+
+
+```
+
+
+```{r}
+
+#CombinedTIC
+
+#Requires Input!!!
+
+################NB: This metric is a table so you may want to produce a table for each inputfile and compare the tables. Replace the inputFile for the number of the file (the third file input would be inputFile =3). Then rename the table to separate it from the other tables you will be making.
+
+CombinedTICTable=data.frame()
+
+inputFile = 1
+
+ for(i in 1:numOfMetrics)
+          {
+              metricName = sub(".*: ", "", combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["name"]])
+              if(metricName == "CombinedTIC")
+              {
+                numItems = length(combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]])
+              for(iii in 1:numItems )
+              {  
+              CombinedTICTable= rbind(CombinedTICTable,combinedList[[inputFile]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[iii]])
+                
+                }
+              }
+ }
+
+```
+
+
+```{r}
+
+#MS1TICQuartilesByRT
+
+for(list in 1:length(combinedList))
+{
+
+  MS1TICQuartilesByRTTable=data.frame()
+  
+   for(i in 1:numOfMetrics)
+            {
+                metricName = sub(".*: ", "", combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["name"]])
+                if(metricName == "MS1TICQuartilesByRT")
+                {
+                  numItems = length(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]])
+                for(iii in 1:numItems )
+                {  
+                MS1TICQuartilesByRTTable= rbind(MS1TICQuartilesByRTTable,combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[iii]])
+                  
+                  }
+                }
+   }
+}
+
+
+```
+
+
+```{r}
+
+#MS2TICQuartilesByRT
+for(list in 1:length(combinedList))
+{ 
+  MS2TICQuartilesByRTTable=data.frame()
+  
+   for(i in 1:numOfMetrics)
+            {
+                metricName = sub(".*: ", "", combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["name"]])
+                if(metricName == "MS2TICQuartilesByRT")
+                {
+                  numItems = length(combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]])
+                for(iii in 1:numItems )
+                {  
+                MS2TICQuartilesByRTTable= rbind(MS2TICQuartilesByRTTable,combinedList[[list]][[1]][["mzQC"]][["runQuality"]][[1]][["qualityParameters"]][[i]][["value"]][[iii]])
+                  
+                  }
+                }
+   }
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
